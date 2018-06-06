@@ -28,6 +28,8 @@ namespace GISDev1
         public IMarkerSymbol pSelectedMarkSymbol = null;
         public ILineSymbol pSelectedLineSymbol = null;
         public IFillSymbol pSelectedFillSymbol = null;
+        public IFeatureClass pGlobeFeatureClass = null;
+
         public Form1()
         {
             InitializeComponent();
@@ -336,6 +338,317 @@ namespace GISDev1
                 axMapControl1.CenterAt(pPoint);   // 将地图主窗口的中心点定位到新的位置
                 axMapControl1.ActiveView.PartialRefresh(esriViewDrawPhase.esriViewGeography, null, null);    //主窗口地图刷新
             }
+        }
+
+        private void axMapControl1_OnMouseDown(object sender, IMapControlEvents2_OnMouseDownEvent e)
+        {
+            switch (toolAction)
+            {
+                case "Drag Zoom In"://判定当前的操作是否为拉框放大
+
+                    IEnvelope pEnvelope = axMapControl1.TrackRectangle();   // 调用axMapControl1的矩形框跟踪功能进行拉框操作，
+                    //将拉框完成后的范围赋值给一个Envelope对象
+                    //此处，你可以尝试axMapControl1.TrackPolygon()，axMapControl1.TrackCircle()，axMapControl1.TrackLine()等方法的调用，看有什么效果
+                    if (pEnvelope == null || pEnvelope.IsEmpty || pEnvelope.Height == 0 || pEnvelope.Width == 0)   //判定所获取的拉框范围是否无效
+                    {
+                        return;  // 拉框范围无效，就直接返回
+                    }
+                    axMapControl1.Extent = pEnvelope;  // 给地图窗口的空间范围赋值为刚才拉框的范围
+                    axMapControl1.ActiveView.Refresh();  //地图刷新
+                    return;
+                case "Drag Zoom Out":   //判定当前的操作是否为拉框缩小
+                    IEnvelope pEnvelope1 = axMapControl1.TrackRectangle();    // 调用axMapControl1的矩形框跟踪功能进行拉框操作，
+                    //将拉框完成后的范围赋值给一个Envelope对象
+                    //此处，你可以尝试axMapControl1.TrackPolygon()，axMapControl1.TrackCircle()，axMapControl1.TrackLine()等方法的调用，看有什么效果 
+                    if (pEnvelope1 == null || pEnvelope1.IsEmpty || pEnvelope1.Height == 0 || pEnvelope1.Width == 0)   ////判定所获取的拉框范围是否无效
+                    {
+                        return;  //// 拉框范围无效，就直接返回
+                    }
+                    IActiveView pActiveView = axMapControl1.ActiveView;   // 获取地图视窗对象
+                    double mHeight = pActiveView.Extent.Height * pActiveView.Extent.Height / pEnvelope1.Height;   // 根据倍数计算新空间范围高度
+                    double mWidth = pActiveView.Extent.Width * pActiveView.Extent.Width / pEnvelope1.Width;   // 根据倍数计算新空间范围宽度
+                    double mMinX = pActiveView.Extent.XMin - (pEnvelope1.XMin - pActiveView.Extent.XMin) * pActiveView.Extent.Width / pEnvelope1.Width;   //计算新空间范围的x的最小值
+                    double mMinY = pActiveView.Extent.YMin - (pEnvelope1.YMin - pActiveView.Extent.YMin) * pActiveView.Extent.Height / pEnvelope1.Height;  //计算新空间范围的y的最小值
+                    double mMaxX = mMinX + mWidth;  //计算新空间范围的x的最大值
+                    double mMaxY = mMinY + mHeight;  // 计算新空间范围的y的最大值
+                    pEnvelope1.PutCoords(mMinX, mMinY, mMaxX, mMaxY);  // 给Envelope对象赋值新的空间范围
+
+                    //(pActiveView.Extent.XMax-pActiveView.Extent.XMin)*
+                    axMapControl1.Extent = pEnvelope1;  // 给地图范围赋值为新的空间范围
+                    axMapControl1.ActiveView.Refresh();  //地图刷新
+                    return;
+                case "Pan":    // 判定是否进行地图平移操作
+                    axMapControl1.Pan();  //可执行地图平移
+                    return;
+                case "Select Feature Using Point":   //点选要素
+                    tagRECT r;   //   定义一个tagRECT结构变量，用于存放以当前鼠标为中心的长宽各为10个像素的小矩形
+                    r.left = e.x - 5;    //
+                    r.right = e.x + 5;   //
+                    r.bottom = e.y - 5;   //
+                    r.top = e.y + 5;     //
+                    IEnvelope pEnv = new Envelope() as IEnvelope;   // 创建一个Envelope对象，用于接受刚才创建的小矩形范围由屏幕坐标转换为地图坐标的值
+                    axMapControl1.ActiveView.ScreenDisplay.DisplayTransformation.TransformRect(pEnv, ref r, 4);     //把r的屏幕坐标转换为地图坐标，存入Envelope对象中
+                    pEnv.SpatialReference = axMapControl1.ActiveView.FocusMap.SpatialReference;    //设定Envelope对象的空间坐标参考与当前地图窗口的坐标一致
+                    IGeometry pGeo = pEnv as IGeometry;     //接口访问到IGeometry接口
+                    axMapControl1.Map.SelectByShape(pGeo, null, false);    //调用地图控件中map对象的SelectByShape方法，在地图中选择与pGeo相交或包含在其中的地图要素
+                    int selCount = axMapControl1.Map.SelectionCount;
+                    IEnumFeature pEnumFeature = axMapControl1.Map.FeatureSelection as IEnumFeature;
+                    IFeature pFeature = pEnumFeature.Next();
+                    while (pFeature != null)
+                    {
+                        string str1 = pFeature.OID.ToString();
+                        MessageBox.Show(str1);
+                        //string str2 = pFeature.get_Value(2).ToString();
+                        pFeature = pEnumFeature.Next();
+                    }
+                    axMapControl1.Refresh(esriViewDrawPhase.esriViewGeoSelection, null, null);    //
+                
+                    toolAction = "";
+                    return;
+                case "Select Feature Using Rectangle":     //矩形选择要素
+                    IEnvelope pEnvlope2 = axMapControl1.TrackRectangle();     //  进行矩形框的绘制追踪，
+                    if (pEnvlope2.IsEmpty == true)     // 若矩形框为空
+                    {
+                        tagRECT r1;
+                        r1.left = e.x - 5;
+                        r1.right = e.x + 5;
+                        r1.bottom = e.y - 5;
+                        r1.top = e.y + 5;
+                        axMapControl1.ActiveView.ScreenDisplay.DisplayTransformation.TransformRect(pEnvlope2, ref r1, 4);
+                        pEnvlope2.SpatialReference = axMapControl1.ActiveView.FocusMap.SpatialReference;
+                    }
+                    IGeometry pGeo1 = pEnvlope2 as IGeometry;
+                    axMapControl1.Map.SelectByShape(pGeo1, null, false);
+                    axMapControl1.Refresh(esriViewDrawPhase.esriViewGeoSelection, null, null);
+                   
+                    
+                    toolAction = "";
+                    return;
+
+
+                case "Select Feature Using Circle":   // 圆形选择要素
+                    IGeometry pCircl = axMapControl1.TrackCircle();   //圆形绘制
+                    if (pCircl.IsEmpty == true)
+                    {
+                        return;
+                    }
+                    // IGeometry pGeo1 = pEnvlope2 as IGeometry;
+                    axMapControl1.Map.SelectByShape(pCircl, null, false);
+                    axMapControl1.Refresh(esriViewDrawPhase.esriViewGeoSelection, null, null);
+                    toolAction = "";
+                    return;
+
+                case "Select Feature Using Polygon":   //多边形选择要素
+
+                    IGeometry pPolygon = axMapControl1.TrackPolygon();   // 绘制多边形
+                    if (pPolygon.IsEmpty == true)
+                    {
+                        return;
+                    }
+                    // IGeometry pGeo1 = pEnvlope2 as IGeometry;
+                    axMapControl1.Map.SelectByShape(pPolygon, null, false);
+                    axMapControl1.Refresh(esriViewDrawPhase.esriViewGeoSelection, null, null);
+                    toolAction = "";
+                    return;
+                case "Select Feature Using Polyline":    // 线性选择要素
+
+                    IGeometry pLine = axMapControl1.TrackLine();   //绘制线
+                    if (pLine.IsEmpty == true)
+                    {
+                        return;
+                    }
+                    // IGeometry pGeo1 = pEnvlope2 as IGeometry;
+                    axMapControl1.Map.SelectByShape(pLine, null, false);
+                    axMapControl1.Refresh(esriViewDrawPhase.esriViewGeoSelection, null, null);
+                    toolAction = "";
+                    return;
+                case "Draw Polygon":
+                    IGeometry pPolygon1 = axMapControl1.TrackPolygon();   // 绘制多边形
+                    if (pPolygon1 == null)
+                    {
+                        return;
+                    }
+                    IElement pElement = new PolygonElement();
+                    pElement.Geometry = pPolygon1;
+                    IFillShapeElement pPolygonEle = pElement as IFillShapeElement;
+                    if (pSelectedFillSymbol != null)
+                        pPolygonEle.Symbol = pSelectedFillSymbol;
+
+                    IGraphicsContainer pGc = axMapControl1.ActiveView.GraphicsContainer;
+                    pGc.AddElement(pElement, 0);
+                    IGraphicsContainerSelect pGSelection = pGc as IGraphicsContainerSelect;
+                    pGSelection.UnselectAllElements();
+                    pGSelection.SelectElement(pElement);
+
+                    toolAction = "";
+                    axMapControl1.ActiveView.PartialRefresh(esriViewDrawPhase.esriViewGraphics, null, null);
+                    return;
+                case "Draw Point":
+                    IPoint pPointMark = new ESRI.ArcGIS.Geometry.Point();   // 创建一个点
+
+                    pPointMark.PutCoords(e.mapX, e.mapY);   //给点赋值为当前鼠标所在位置的地图坐标
+                    IGeometry pPointGeo = pPointMark as IGeometry;
+                    IElement pMElement = new MarkerElement();
+                    pMElement.Geometry = pPointGeo;
+                    IMarkerElement pMarkElement = pMElement as IMarkerElement;
+                    if (pSelectedMarkSymbol != null)
+                        pMarkElement.Symbol = pSelectedMarkSymbol;
+
+                    IGraphicsContainer pGraphiscont = axMapControl1.ActiveView.GraphicsContainer;
+                    pGraphiscont.AddElement(pMElement, 0);
+                    IGraphicsContainerSelect pGS = pGraphiscont as IGraphicsContainerSelect;
+                    pGS.UnselectAllElements();
+                    pGS.SelectElement(pMElement);
+
+                    toolAction = "";
+                    axMapControl1.ActiveView.PartialRefresh(esriViewDrawPhase.esriViewGraphics, null, null);
+                    return;
+                case "Draw Line":
+                    IGeometry pLineGeo = axMapControl1.TrackLine();   // 绘制Line
+                    if (pLineGeo == null)
+                    {
+                        return;
+                    }
+                    IElement pElement4 = new LineElement();
+                    ILineElement pLineEle = pElement4 as ILineElement;
+                    if (pSelectedLineSymbol != null)
+                        pLineEle.Symbol = pSelectedLineSymbol;
+
+                    pElement4.Geometry = pLineGeo;
+                    IGraphicsContainer pGc4 = axMapControl1.ActiveView.GraphicsContainer;
+                    pGc4.AddElement(pElement4, 0);
+                    IGraphicsContainerSelect pGSelection4 = pGc4 as IGraphicsContainerSelect;
+                    pGSelection4.UnselectAllElements();
+                    pGSelection4.SelectElement(pElement4);
+
+                    toolAction = "";
+                    axMapControl1.ActiveView.PartialRefresh(esriViewDrawPhase.esriViewGraphics, null, null);
+
+                    return;
+
+                case "Draw Text":
+                    IRgbColor pColor = new RgbColor();
+                    pColor.Red = 150;
+                    pColor.Green = 150;
+                    pColor.Blue = 0;
+
+                    ITextSymbol pTextSymbol = new TextSymbol();
+                    stdole.StdFont font = new stdole.StdFont();
+                    font.Name = "宋体";
+                    font.Size = 20;
+                    pTextSymbol.Font = font as stdole.IFontDisp;
+                    pTextSymbol.Color = pColor;
+                    pTextSymbol.HorizontalAlignment = esriTextHorizontalAlignment.esriTHALeft;
+                    pTextSymbol.VerticalAlignment = esriTextVerticalAlignment.esriTVABaseline;
+                    pTextSymbol.Text = "This is my First Text";
+
+
+                    IPoint pTextPoint = new ESRI.ArcGIS.Geometry.Point();   // 创建一个点
+
+                    pTextPoint.PutCoords(e.mapX, e.mapY);   //给点赋值为当前鼠标所在位置的地图坐标
+                    IGeometry pTextGeo = pTextPoint as IGeometry;
+
+                    IElement pTElement = new TextElement();
+                    pTElement.Geometry = pTextGeo;
+                    ITextElement pTextEle = pTElement as ITextElement;
+                    pTextEle.Symbol = pTextSymbol;
+                    pTextEle.Text = pTextSymbol.Text;
+
+                    IGraphicsContainer pGraphisCon = axMapControl1.ActiveView.GraphicsContainer;
+                    pGraphisCon.AddElement(pTElement, 0);
+
+                    IGraphicsContainerSelect pGrhSelection = pGraphisCon as IGraphicsContainerSelect;
+                    pGrhSelection.UnselectAllElements();
+                    pGrhSelection.SelectElement(pTElement);
+
+                    axMapControl1.ActiveView.PartialRefresh(esriViewDrawPhase.esriViewGraphics, null, null);
+
+                    toolAction = "";
+                    break;
+
+
+                case "Select Graphics by using Point":    //通过点击获得GraphicsContainor中的element
+
+                    IPoint pPoint = new ESRI.ArcGIS.Geometry.Point();   // 创建一个点
+                    pPoint.PutCoords(e.mapX, e.mapY);   //给点赋值为当前鼠标所在位置的地图坐标
+                    double dist = axMapControl1.ActiveView.Extent.Width / 15;   //设置以点为圆心的查询的半径
+                    IGraphicsContainer pGc1 = axMapControl1.ActiveView.GraphicsContainer;   //获得地图的GraphicsContainor容器
+                    IEnumElement pEnumElement = pGc1.LocateElements(pPoint, dist);   //以点为中心点，按照指定半径选择element
+                    IGraphicsContainerSelect pGSelection1 = pGc1 as IGraphicsContainerSelect;   //获得地图的容器中的图形要素选择集
+                    if (pEnumElement != null)   //
+                    {
+                        pEnumElement.Reset();   //回到-1位置
+                        pGSelection1.UnselectAllElements();   //清空原来选择到的图形要素
+                        pGSelection1.SelectElements(pEnumElement);   //将新查询到的图形要素添加到GraphicsContainor容器中的图形要素选择集中
+                    }
+                    axMapControl1.ActiveView.PartialRefresh(esriViewDrawPhase.esriViewGraphics, null, null);   //图形要素刷新
+
+                    return;
+                    //case "Select Feature by using Selected Graphics":
+                    //    IPoint pPoint1 = new ESRI.ArcGIS.Geometry.Point();
+                    //    pPoint1.PutCoords(e.mapX, e.mapY);
+                    //    double dist1 = axMapControl1.ActiveView.Extent.Width / 15;
+                    //    IGraphicsContainer pGc11 = axMapControl1.ActiveView.GraphicsContainer;
+                    //    IGraphicsContainerSelect pGSelection2 = pGc11 as IGraphicsContainerSelect;
+                    //    IEnumElement pEnumElement1 = pGc11.LocateElements(pPoint1, dist1);
+                    //    if (pEnumElement1 != null)
+                    //    {
+                    //        pEnumElement1.Reset();
+                    //        pGSelection2.UnselectAllElements();
+                    //        pGSelection2.SelectElements(pEnumElement1);
+                    //        IElement lsElement;
+                    //        while ((lsElement = pEnumElement1.Next()) != null)
+                    //        {
+
+                    //        }
+                    //    }
+                    //    axMapControl1.ActiveView.Refresh();
+
+                    //    break;
+
+
+            }
+
+        }
+
+        private void barButtonItem28_ItemClick(object sender, DevExpress.XtraBars.ItemClickEventArgs e)
+        {         
+            toolAction = "Select Feature Using Rectangle";
+        }
+
+        private void barButtonItem9_ItemClick(object sender, DevExpress.XtraBars.ItemClickEventArgs e)
+        {
+            toolAction = "Select Feature Using Point";
+        }
+
+        private void barButtonItem10_ItemClick(object sender, DevExpress.XtraBars.ItemClickEventArgs e)
+        {
+            toolAction = "Select Feature Using Polygon";
+        }
+
+        private void barButtonItem29_ItemClick(object sender, DevExpress.XtraBars.ItemClickEventArgs e)
+        {
+            toolAction = "";
+            axMapControl1.ActiveView.FocusMap.ClearSelection();   // 清空当前地图的选择集;
+            axMapControl1.ActiveView.Refresh();
+        }
+
+        private void barButtonItem30_ItemClick(object sender, DevExpress.XtraBars.ItemClickEventArgs e)
+        {
+            IMap pMap = axMapControl1.ActiveView.FocusMap;
+            StaticsForm1 frmStatistics = new StaticsForm1();  //创建属性统计窗口
+            //frmStatistics.PFeatureClass =pGlobeFeatureClass;
+            frmStatistics.PMap = pMap;
+            //frmStatistics.PFeatureClass = pGlobeFeatureLayer.FeatureClass;    //给窗口属性赋值
+            frmStatistics.Show();     //打开窗口
+        }
+
+        private void barButtonItem27_ItemClick(object sender, DevExpress.XtraBars.ItemClickEventArgs e)
+        {
+            IMap pMap = axMapControl1.ActiveView.FocusMap;   //获取当前地图
+            AttributeQueryFormcs frmAtrributeQuery = new AttributeQueryFormcs();   //创建属性查询窗口
+            frmAtrributeQuery.PMap = pMap;   //给属性查询窗口的PMap属性赋值
+            frmAtrributeQuery.Show();  //打开窗口
         }
     }
 }
