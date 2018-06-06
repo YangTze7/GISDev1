@@ -23,6 +23,7 @@ namespace GISDev1
     public partial class Form1 : DevExpress.XtraBars.Ribbon.RibbonForm
     {
         public string toolAction = "";   //该字符创全局变量用于存储当前用户选择要进行地图浏览操作的动作内容，拉框放大：“drag zoom in”、拉框缩小：“drag zoom out”、平移：“pan”
+        public string str1 = "";
         public static string strCurrentBookMakName = "";
         public IFeatureLayer pGlobeFeatureLayer = null;     //定义一个全局变量，用于存储在TOCControl上进行鼠标点击时所选择的特征层
         public IMarkerSymbol pSelectedMarkSymbol = null;
@@ -381,6 +382,9 @@ namespace GISDev1
                     axMapControl1.Pan();  //可执行地图平移
                     return;
                 case "Select Feature Using Point":   //点选要素
+                   
+                    axMapControl1.ActiveView.FocusMap.ClearSelection();   // 清空当前地图的选择集;
+                    axMapControl1.ActiveView.Refresh();
                     tagRECT r;   //   定义一个tagRECT结构变量，用于存放以当前鼠标为中心的长宽各为10个像素的小矩形
                     r.left = e.x - 5;    //
                     r.right = e.x + 5;   //
@@ -391,18 +395,37 @@ namespace GISDev1
                     pEnv.SpatialReference = axMapControl1.ActiveView.FocusMap.SpatialReference;    //设定Envelope对象的空间坐标参考与当前地图窗口的坐标一致
                     IGeometry pGeo = pEnv as IGeometry;     //接口访问到IGeometry接口
                     axMapControl1.Map.SelectByShape(pGeo, null, false);    //调用地图控件中map对象的SelectByShape方法，在地图中选择与pGeo相交或包含在其中的地图要素
-                    int selCount = axMapControl1.Map.SelectionCount;
-                    IEnumFeature pEnumFeature = axMapControl1.Map.FeatureSelection as IEnumFeature;
+                    //int selCount = axMapControl1.Map.SelectionCount;
+                    //IEnumFeature pEnumFeature = axMapControl1.Map.FeatureSelection as IEnumFeature;
+                    //IFeature pFeature = pEnumFeature.Next();
+                    //while (pFeature != null)
+                    //{
+                    //    int index = pFeature.Fields.FindField("GB");
+                    //    str1 = Convert.ToString(pFeature.get_Value(index));
+                    //    MessageBox.Show(str1);
+                    //    //string str2 = pFeature.get_Value(2).ToString();
+                    //    pFeature = pEnumFeature.Next();
+                    //}
+
+
+                   
+                    ISelection selection =axMapControl1.Map.FeatureSelection;
+                    IEnumFeatureSetup iEnumFeatureSetup = (IEnumFeatureSetup)selection;
+                    iEnumFeatureSetup.AllFields = true;
+                    IEnumFeature pEnumFeature = (IEnumFeature)iEnumFeatureSetup;
+                    pEnumFeature.Reset();
                     IFeature pFeature = pEnumFeature.Next();
-                    while (pFeature != null)
+                    if (pFeature != null)
                     {
-                        string str1 = pFeature.OID.ToString();
-                        MessageBox.Show(str1);
-                        //string str2 = pFeature.get_Value(2).ToString();
-                        pFeature = pEnumFeature.Next();
+                        int index = pFeature.Fields.FindField("RNAME");
+                        //string str1 = pFeature.OID.ToString();
+                        if(index!=-1)
+                        str1 = pFeature.get_Value(index).ToString();
+                        //MessageBox.Show(str1);
+                        //pFeature = pEnumFeature.Next();
                     }
                     axMapControl1.Refresh(esriViewDrawPhase.esriViewGeoSelection, null, null);    //
-                
+                    
                     toolAction = "";
                     return;
                 case "Select Feature Using Rectangle":     //矩形选择要素
@@ -584,29 +607,13 @@ namespace GISDev1
                     axMapControl1.ActiveView.PartialRefresh(esriViewDrawPhase.esriViewGraphics, null, null);   //图形要素刷新
 
                     return;
-                    //case "Select Feature by using Selected Graphics":
-                    //    IPoint pPoint1 = new ESRI.ArcGIS.Geometry.Point();
-                    //    pPoint1.PutCoords(e.mapX, e.mapY);
-                    //    double dist1 = axMapControl1.ActiveView.Extent.Width / 15;
-                    //    IGraphicsContainer pGc11 = axMapControl1.ActiveView.GraphicsContainer;
-                    //    IGraphicsContainerSelect pGSelection2 = pGc11 as IGraphicsContainerSelect;
-                    //    IEnumElement pEnumElement1 = pGc11.LocateElements(pPoint1, dist1);
-                    //    if (pEnumElement1 != null)
-                    //    {
-                    //        pEnumElement1.Reset();
-                    //        pGSelection2.UnselectAllElements();
-                    //        pGSelection2.SelectElements(pEnumElement1);
-                    //        IElement lsElement;
-                    //        while ((lsElement = pEnumElement1.Next()) != null)
-                    //        {
-
-                    //        }
-                    //    }
-                    //    axMapControl1.ActiveView.Refresh();
-
-                    //    break;
+                    
 
 
+            }
+            if (e.button == 2)   //若单击鼠标右键
+            {
+                contextMenuStrip2.Show(axMapControl1, e.x, e.y);    //在TOC控件的当前鼠标位置弹出右键菜单
             }
 
         }
@@ -649,6 +656,93 @@ namespace GISDev1
             AttributeQueryFormcs frmAtrributeQuery = new AttributeQueryFormcs();   //创建属性查询窗口
             frmAtrributeQuery.PMap = pMap;   //给属性查询窗口的PMap属性赋值
             frmAtrributeQuery.Show();  //打开窗口
+        }
+
+        private void 图片ToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            toolAction = "Select Feature Using Point";
+            if (str1 != null)
+            {
+                PictureShowForm pic = new PictureShowForm(str1);
+                pic.Show();
+            }
+            str1 = "";
+            toolAction = "";
+
+
+
+
+        }
+
+        private void barButtonItem25_ItemClick(object sender, DevExpress.XtraBars.ItemClickEventArgs e)
+        {
+
+        }
+
+        private void barButtonItem31_ItemClick(object sender, DevExpress.XtraBars.ItemClickEventArgs e)
+        {
+            ICommand pZoomIn = new ControlsMapZoomInTool();
+            pZoomIn.OnCreate(axMapControl1.Object);
+            axMapControl1.CurrentTool = pZoomIn as ITool;
+        }
+
+        private void barButtonItem32_ItemClick(object sender, DevExpress.XtraBars.ItemClickEventArgs e)
+        {
+            ICommand pZoomOut = new ControlsMapZoomOutTool();
+            pZoomOut.OnCreate(axMapControl1.Object);
+            axMapControl1.CurrentTool = pZoomOut as ITool;
+        }
+
+        private void barButtonItem33_ItemClick(object sender, DevExpress.XtraBars.ItemClickEventArgs e)
+        {
+            axMapControl1.ActiveView.Extent = axMapControl1.ActiveView.FullExtent;
+            axMapControl1.ActiveView.Refresh();
+        }
+
+        private void barButtonItem34_ItemClick(object sender, DevExpress.XtraBars.ItemClickEventArgs e)
+        {
+            IExtentStack pExtentStack = null;
+
+            pExtentStack = axMapControl1.ActiveView.ExtentStack;
+
+            if (pExtentStack.CanUndo())
+
+            {
+
+                pExtentStack.Undo();
+
+            }
+
+            axMapControl1.Refresh();
+        }
+
+        private void barButtonItem35_ItemClick(object sender, DevExpress.XtraBars.ItemClickEventArgs e)
+        {
+            IExtentStack pExtentStack = null;
+
+            pExtentStack = axMapControl1.ActiveView.ExtentStack;
+
+            if (pExtentStack.CanRedo())
+
+            {
+
+                pExtentStack.Redo();
+
+            }
+
+            axMapControl1.Refresh();
+        }
+
+        private void barButtonItem36_ItemClick(object sender, DevExpress.XtraBars.ItemClickEventArgs e)
+        {
+            ICommand pZoomPan = new ControlsMapZoomPanTool();
+            pZoomPan.OnCreate(axMapControl1.Object);
+            axMapControl1.CurrentTool = pZoomPan as ITool;
+        }
+
+        private void barButtonItem37_ItemClick(object sender, DevExpress.XtraBars.ItemClickEventArgs e)
+        {
+            axMapControl1.CurrentTool = null;
         }
     }
 }
