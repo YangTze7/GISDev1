@@ -31,6 +31,10 @@ namespace GISDev1
         public IFillSymbol pSelectedFillSymbol = null;
         public IFeatureClass pGlobeFeatureClass = null;
 
+        //路径分析
+        IMapDocument mapDocument;
+        public IFeatureWorkspace pFWorkspace;
+        string path = System.AppDomain.CurrentDomain.SetupInformation.ApplicationBase;
         public Form1()
         {
             InitializeComponent();
@@ -743,6 +747,73 @@ namespace GISDev1
         private void barButtonItem37_ItemClick(object sender, DevExpress.XtraBars.ItemClickEventArgs e)
         {
             axMapControl1.CurrentTool = null;
+        }
+
+        private void barButtonItem22_ItemClick(object sender, DevExpress.XtraBars.ItemClickEventArgs e)
+        {
+            ICommand pCommand;
+            pCommand = new AddNetStop();
+            pCommand.OnCreate(axMapControl1.Object);
+            axMapControl1.CurrentTool = pCommand as ITool;
+            pCommand = null;
+        }
+
+        private void barButtonItem23_ItemClick(object sender, DevExpress.XtraBars.ItemClickEventArgs e)
+        {
+            ICommand pCommand;
+            pCommand = new AddNetBarriesTool();
+            pCommand.OnCreate(axMapControl1.Object);
+            axMapControl1.CurrentTool = pCommand as ITool;
+            pCommand = null;
+        }
+
+        private void barButtonItem38_ItemClick(object sender, DevExpress.XtraBars.ItemClickEventArgs e)
+        {
+            ICommand pCommand;
+            pCommand = new ShortPathSolveCommand();
+            pCommand.OnCreate(axMapControl1.Object);
+            pCommand.OnClick();
+            pCommand = null;
+        }
+
+        private void barButtonItem39_ItemClick(object sender, DevExpress.XtraBars.ItemClickEventArgs e)
+        {
+            axMapControl1.CurrentTool = null;
+            try
+            {
+                string name = NetWorkAnalysClass.getPath(path) + "\\data\\HuanbaoGeodatabase.gdb";
+                //打开工作空间
+                pFWorkspace = NetWorkAnalysClass.OpenWorkspace(name) as IFeatureWorkspace;
+                IGraphicsContainer pGrap = this.axMapControl1.ActiveView as IGraphicsContainer;
+                pGrap.DeleteAllElements();//删除所添加的图片要素
+                IFeatureClass inputFClass = pFWorkspace.OpenFeatureClass("Stops");
+                //删除站点要素
+                if (inputFClass.FeatureCount(null) > 0)
+                {
+                    ITable pTable = inputFClass as ITable;
+                    pTable.DeleteSearchedRows(null);
+                }
+                IFeatureClass barriesFClass = pFWorkspace.OpenFeatureClass("Barries");//删除障碍点要素
+                if (barriesFClass.FeatureCount(null) > 0)
+                {
+                    ITable pTable = barriesFClass as ITable;
+                    pTable.DeleteSearchedRows(null);
+                }
+                for (int i = 0; i < axMapControl1.LayerCount; i++)//删除分析结果
+                {
+                    ILayer pLayer = axMapControl1.get_Layer(i);
+                    if (pLayer.Name == ShortPathSolveCommand.m_NAContext.Solver.DisplayName)
+                    {
+                        axMapControl1.DeleteLayer(i);
+                        break;
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show(ex.Message);
+            }
+            this.axMapControl1.Refresh();
         }
     }
 }
